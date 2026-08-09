@@ -15,6 +15,12 @@ export default function Home() {
   const [resumeResult, setResumeResult] = useState<any>(null)
   const [resumeError, setResumeError] = useState('')
 
+  // Agent state
+  const [jobRunId, setJobRunId] = useState('')
+  const [agentLoading, setAgentLoading] = useState(false)
+  const [agentResult, setAgentResult] = useState<any>(null)
+  const [agentError, setAgentError] = useState('')
+
   const handleParseJob = async () => {
     setJobLoading(true)
     setJobError('')
@@ -66,6 +72,31 @@ export default function Home() {
       setResumeError(String(err))
     } finally {
       setResumeLoading(false)
+    }
+  }
+
+  const handleRunAgent = async () => {
+    setAgentLoading(true)
+    setAgentError('')
+    setAgentResult(null)
+
+    try {
+      const res = await fetch('/api/run-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobRunId }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setAgentError(data.error || 'Something went wrong')
+      } else {
+        setAgentResult(data)
+      }
+    } catch (err) {
+      setAgentError(String(err))
+    } finally {
+      setAgentLoading(false)
     }
   }
 
@@ -133,6 +164,26 @@ export default function Home() {
 
       {resumeError && <p style={{ color: 'red', marginTop: '1rem' }}>Error: {resumeError}</p>}
       {resumeResult && <pre style={resultStyle}>{JSON.stringify(resumeResult, null, 2)}</pre>}
+
+      <hr style={{ margin: '3rem 0', borderColor: '#333' }} />
+
+      <h1>Agent Test</h1>
+      <p style={{ color: '#999', fontSize: '0.9rem' }}>
+        Paste a jobRunId from your job_runs table (copy from Supabase Table Editor)
+      </p>
+      <input
+        type="text"
+        value={jobRunId}
+        onChange={(e) => setJobRunId(e.target.value)}
+        placeholder="Paste a job_run id"
+        style={inputStyle}
+      />
+      <button onClick={handleRunAgent} disabled={agentLoading || !jobRunId} style={buttonStyle}>
+        {agentLoading ? 'Running...' : 'Run Agent'}
+      </button>
+
+      {agentError && <p style={{ color: 'red', marginTop: '1rem' }}>Error: {agentError}</p>}
+      {agentResult && <pre style={resultStyle}>{JSON.stringify(agentResult, null, 2)}</pre>}
     </main>
   )
 }
