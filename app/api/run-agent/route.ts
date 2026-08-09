@@ -63,10 +63,68 @@ export async function POST(req: NextRequest) {
       latency_ms: Date.now() - researchStart,
     })
 
+    // STEP B: Fit Scoring
+    const scoringStart = Date.now()
+
+    const scoringPrompt = `You are an honest, rigorous career coach analyzing fit between a candidate and a job. Do NOT be generous — only claim a match if there is real evidence in the resume. Do NOT fabricate gaps that aren't real either.
+
+JOB REQUIREMENTS:
+${JSON.stringify(jobData.requirements)}
+
+NICE TO HAVE:
+${JSON.stringify(jobData.niceToHave)}
+
+CANDIDATE'S RESUME DATA:
+${JSON.stringify(resumeData)}
+
+COMPANY CONTEXT:
+${researchSummary.slice(0, 1500)}
+
+Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
+{
+  "overallFit": "strong | moderate | weak",
+  "matchedRequirements": [
+    { "requirement": "the requirement text", "evidence": "specific evidence from the resume that supports this" }
+  ],
+  "genuineGaps": [
+    { "requirement": "the requirement text", "reason": "why the resume doesn't show evidence of this" }
+  ],
+  "standoutPoints": ["anything from the resume that's a genuine differentiator for this specific role"]
+}`
+
+    const scoringCompletion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: scoringPrompt }],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.1,
+    })
+
+    const scoringResponseText = scoringCompletion.choices[0]?.message?.content || ''
+    const scoringCleanedJson = scoringResponseText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    const fitScore = JSON.parse(scoringCleanedJson)
+
+    await supabase.from('run_steps').insert({
+      job_run_id: jobRunId,
+      step_number: stepNumber++,
+      step_name: 'score_fit',
+      step_input: { requirements: jobData.requirements },
+      step_output: fitScore,
+      latency_ms: Date.now() - scoringStart,
+    })
+
+    // Save fit score to the job_runs row itself
+    await supabase
+      .from('job_runs')
+      .update({ fit_score: fitScore, status: 'scored' })
+      .eq('id', jobRunId)
+
     return NextResponse.json({
       success: true,
-      message: 'Step 1 (research) complete — more steps coming next',
+      message: 'Steps 1-2 complete — research and fit scoring done',
       researchSummary,
+      fitScore,
     })
   } catch (error) {
     console.error('Run agent error:', error)
