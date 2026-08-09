@@ -77,7 +77,37 @@ ${textContent}`
 
     const parsedData = JSON.parse(cleanedJson)
 
-    return NextResponse.json({ success: true, data: parsedData })
+    // Find the user's most recently parsed resume to link this job run to
+    const { data: latestResume } = await supabase
+      .from('resumes')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    // Save the parsed job as a new job_run
+    const { data: savedRun, error: saveError } = await supabase
+      .from('job_runs')
+      .insert({
+        user_id: user.id,
+        resume_id: latestResume?.id || null,
+        job_url: jobUrl,
+        job_parsed_data: parsedData,
+        status: 'pending',
+      })
+      .select()
+      .single()
+
+    if (saveError) {
+      console.error('Failed to save job run:', saveError)
+      return NextResponse.json(
+        { error: 'Job parsed but failed to save', details: saveError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: parsedData, jobRunId: savedRun.id })
   } catch (error) {
     console.error('Parse job error:', error)
     return NextResponse.json(

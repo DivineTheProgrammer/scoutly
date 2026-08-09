@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     let extractedText = ''
 
-    // Step 1: Extract raw text depending on file type
     if (file.type === 'application/pdf') {
       const uint8Array = new Uint8Array(buffer)
       const pdf = await getDocumentProxy(uint8Array)
@@ -53,7 +52,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Step 2: Ask the model to extract structured resume data
     const prompt = `You are a resume parser. Extract structured data from the following resume text and return ONLY valid JSON, no markdown formatting, no explanation.
 
 Return this exact structure:
@@ -97,7 +95,26 @@ ${extractedText}`
 
     const parsedData = JSON.parse(cleanedJson)
 
-    return NextResponse.json({ success: true, data: parsedData })
+    // Save the parsed resume to the database
+    const { data: savedResume, error: saveError } = await supabase
+      .from('resumes')
+      .insert({
+        user_id: user.id,
+        original_filename: file.name,
+        parsed_data: parsedData,
+      })
+      .select()
+      .single()
+
+    if (saveError) {
+      console.error('Failed to save resume:', saveError)
+      return NextResponse.json(
+        { error: 'Resume parsed but failed to save', details: saveError.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: parsedData, resumeId: savedResume.id })
   } catch (error) {
     console.error('Parse resume error:', error)
     return NextResponse.json(
