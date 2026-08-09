@@ -120,11 +120,61 @@ Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
       .update({ fit_score: fitScore, status: 'scored' })
       .eq('id', jobRunId)
 
+    // STEP C: Generate Tailored Output
+    const generationStart = Date.now()
+
+    const generationPrompt = `You are a career coach helping a candidate apply to a specific job. Based on the job requirements, the candidate's real resume data, and the fit analysis below, write:
+
+1. Three tailored resume bullet points that honestly highlight the candidate's MOST relevant experience for this specific role (do not fabricate anything not in the resume — only reframe and emphasize what's real)
+2. A short, genuine cold outreach message (3-4 sentences) the candidate could send to a recruiter or hiring manager at this company
+
+JOB: ${jobData.title} at ${jobData.company}
+JOB REQUIREMENTS: ${JSON.stringify(jobData.requirements)}
+
+CANDIDATE RESUME DATA: ${JSON.stringify(resumeData)}
+
+FIT ANALYSIS: ${JSON.stringify(fitScore)}
+
+Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
+{
+  "tailoredBullets": ["bullet 1", "bullet 2", "bullet 3"],
+  "outreachMessage": "the message text"
+}`
+
+    const generationCompletion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: generationPrompt }],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.4,
+    })
+
+    const generationResponseText = generationCompletion.choices[0]?.message?.content || ''
+    const generationCleanedJson = generationResponseText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    const generatedOutput = JSON.parse(generationCleanedJson)
+
+    await supabase.from('run_steps').insert({
+      job_run_id: jobRunId,
+      step_number: stepNumber++,
+      step_name: 'generate_output',
+      step_input: { jobTitle: jobData.title, company: jobData.company },
+      step_output: generatedOutput,
+      latency_ms: Date.now() - generationStart,
+    })
+
+    // Mark the job run as fully completed with all output saved
+    await supabase
+      .from('job_runs')
+      .update({ generated_output: generatedOutput, status: 'completed' })
+      .eq('id', jobRunId)
+
     return NextResponse.json({
       success: true,
-      message: 'Steps 1-2 complete — research and fit scoring done',
+      message: 'Agent run complete — research, scoring, and generation all done',
       researchSummary,
       fitScore,
+      generatedOutput,
     })
   } catch (error) {
     console.error('Run agent error:', error)
