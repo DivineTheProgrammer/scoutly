@@ -35,6 +35,20 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
       ? 'orange'
       : 'red'
 
+  const originalBullets: string[] = []
+  if (run.resumes && run.resumes.parsed_data && run.resumes.parsed_data.experience) {
+    run.resumes.parsed_data.experience.forEach((exp: any) => {
+      if (exp.achievements) {
+        exp.achievements.forEach((a: string) => originalBullets.push(a))
+      }
+    })
+  }
+
+  const tailoredBullets =
+    run.generated_output && run.generated_output.tailoredBullets
+      ? run.generated_output.tailoredBullets
+      : []
+
   return (
     <main style={{ padding: '2rem', color: 'white', maxWidth: '800px', margin: '0 auto' }}>
       <p>
@@ -98,19 +112,33 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
+      {(originalBullets.length > 0 || tailoredBullets.length > 0) && (
+        <div style={cardStyle}>
+          <h2 style={{ marginTop: 0 }}>Before &amp; After</h2>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 300px' }}>
+              <h3 style={{ color: '#999' }}>Original Resume Bullets</h3>
+              <ul>
+                {originalBullets.map((b, i) => (
+                  <li key={i} style={{ marginBottom: '0.5rem', color: '#ccc' }}>{b}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ flex: '1 1 300px' }}>
+              <h3 style={{ color: 'lightgreen' }}>Tailored for This Role</h3>
+              <ul>
+                {tailoredBullets.map((b: string, i: number) => (
+                  <li key={i} style={{ marginBottom: '0.5rem' }}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {run.generated_output && (
         <div style={cardStyle}>
-          <h2 style={{ marginTop: 0 }}>Tailored Output</h2>
-
-          <h3>Resume Bullets</h3>
-          <ul>
-            {run.generated_output.tailoredBullets &&
-              run.generated_output.tailoredBullets.map((b: string, i: number) => (
-                <li key={i} style={{ marginBottom: '0.5rem' }}>{b}</li>
-              ))}
-          </ul>
-
-          <h3>Outreach Message</h3>
+          <h2 style={{ marginTop: 0 }}>Outreach Message</h2>
           <p style={{ color: '#ccc' }}>{run.generated_output.outreachMessage}</p>
         </div>
       )}

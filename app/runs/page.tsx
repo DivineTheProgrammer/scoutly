@@ -21,7 +21,7 @@ export default function Runs() {
     fetchRuns()
   }, [])
 
-  const statusColor = (status: string) => {
+  const statusColor = function (status: string) {
     if (status === 'completed') return 'lightgreen'
     if (status === 'failed') return 'red'
     if (status === 'running') return 'orange'
@@ -31,9 +31,7 @@ export default function Runs() {
   return (
     <main style={{ padding: '2rem', color: 'white', maxWidth: '700px', margin: '0 auto' }}>
       <h1>Your Job Runs</h1>
-      <p style={{ marginTop: '0.5rem' }}>
-        <a href="/" style={{ color: '#4ea8ff' }}>Back to new analysis</a>
-      </p>
+      <p style={{ marginTop: '0.5rem' }}><a href="/" style={{ color: '#4ea8ff' }}>Back to new analysis</a></p>
 
       {loading && <p style={{ marginTop: '1rem' }}>Loading...</p>}
 
@@ -42,30 +40,17 @@ export default function Runs() {
       )}
 
       <div style={{ marginTop: '1.5rem' }}>
-        {runs.map((run) => (
-          
-            key={run.id}
-            href={'/runs/' + run.id}
-            style={{
-              display: 'block',
-              padding: '1rem',
-              marginBottom: '0.75rem',
-              backgroundColor: '#111',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              color: 'white',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>{run.job_parsed_data && run.job_parsed_data.title ? run.job_parsed_data.title : 'Untitled'}</strong>
-              <span style={{ color: statusColor(run.status) }}>{run.status}</span>
-            </div>
-            <div style={{ color: '#999', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              {run.job_parsed_data && run.job_parsed_data.company ? run.job_parsed_data.company : 'Unknown company'}
-              {run.fit_score && run.fit_score.overallFit ? ' - Fit: ' + run.fit_score.overallFit : ''}
-            </div>
-          </a>
-        ))}
+        {runs.map(function (run) {
+          const title = run.job_parsed_data && run.job_parsed_data.title ? run.job_parsed_data.title : 'Untitled'
+          const company = run.job_parsed_data && run.job_parsed_data.company ? run.job_parsed_data.company : 'Unknown company'
+          const fitText = run.fit_score && run.fit_score.overallFit ? ' - Fit: ' + run.fit_score.overallFit : ''
+          return (
+            <a key={run.id} href={'/runs/' + run.id} style={{ display: 'block', padding: '1rem', marginBottom: '0.75rem', backgroundColor: '#111', borderRadius: '6px', textDecoration: 'none', color: 'white' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{title}</strong><span style={{ color: statusColor(run.status) }}>{run.status}</span></div>
+              <div style={{ color: '#999', fontSize: '0.9rem', marginTop: '0.25rem' }}>{company}{fitText}</div>
+            </a>
+          )
+        })}
       </div>
     </main>
   )
