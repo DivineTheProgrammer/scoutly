@@ -6,6 +6,23 @@ import { createServerSupabaseClient } from '../../lib/supabase-server'
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! })
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY! })
 
+// Retry helper: retries a function up to `retries` times with a delay between attempts
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 1500): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      console.error(`Attempt ${attempt + 1} failed:`, err)
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+  }
+  throw lastError
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -46,9 +63,9 @@ export async function POST(req: NextRequest) {
 
     // STEP A: Company Research
     const researchStart = Date.now()
-    const searchResults = await tvly.search(`${jobData.company} company overview tech stack culture`, {
-      maxResults: 3,
-    })
+    const searchResults = await withRetry(() =>
+      tvly.search(`${jobData.company} company overview tech stack culture`, { maxResults: 3 })
+    )
     const researchSummary = searchResults.results
       .map((r: any) => `${r.title}: ${r.content}`)
       .join('\n\n')
@@ -92,11 +109,13 @@ Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
   "standoutPoints": ["anything from the resume that's a genuine differentiator for this specific role"]
 }`
 
-    const scoringCompletion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: scoringPrompt }],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.1,
-    })
+    const scoringCompletion = await withRetry(() =>
+      groq.chat.completions.create({
+        messages: [{ role: 'user', content: scoringPrompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.1,
+      })
+    )
 
     const scoringResponseText = scoringCompletion.choices[0]?.message?.content || ''
     const scoringCleanedJson = scoringResponseText
@@ -141,11 +160,13 @@ Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
   "outreachMessage": "the message text"
 }`
 
-    const generationCompletion = await groq.chat.completions.create({
-      messages: [{ role: 'user', content: generationPrompt }],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.4,
-    })
+    const generationCompletion = await withRetry(() =>
+      groq.chat.completions.create({
+        messages: [{ role: 'user', content: generationPrompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.4,
+      })
+    )
 
     const generationResponseText = generationCompletion.choices[0]?.message?.content || ''
     const generationCleanedJson = generationResponseText
@@ -178,6 +199,21 @@ Return ONLY valid JSON, no markdown, no explanation, in this exact structure:
     })
   } catch (error) {
     console.error('Run agent error:', error)
+
+    // Mark the job run as failed so it doesn't stay stuck on "running" forever
+    try {
+      const body = await req.clone().json().catch(() => null)
+      if (body?.jobRunId) {
+        const supabase = await createServerSupabaseClient()
+        await supabase
+          .from('job_runs')
+          .update({ status: 'failed' })
+          .eq('id', body.jobRunId)
+      }
+    } catch (cleanupError) {
+      console.error('Failed to mark job run as failed:', cleanupError)
+    }
+
     return NextResponse.json(
       { error: 'Agent run failed', details: String(error) },
       { status: 500 }
