@@ -1,10 +1,18 @@
 import Groq from 'groq-sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '../../lib/supabase-server'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! })
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'You must be signed in to parse a job posting' }, { status: 401 })
+    }
+
     const { jobUrl } = await req.json()
 
     if (!jobUrl) {
@@ -62,7 +70,6 @@ ${textContent}`
 
     const responseText = completion.choices[0]?.message?.content || ''
 
-    // Step 4: Clean up response (models sometimes wrap JSON in markdown code blocks)
     const cleanedJson = responseText
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')

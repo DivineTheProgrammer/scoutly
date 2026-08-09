@@ -2,11 +2,19 @@ import Groq from 'groq-sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import mammoth from 'mammoth'
 import { extractText, getDocumentProxy } from 'unpdf'
+import { createServerSupabaseClient } from '../../lib/supabase-server'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! })
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'You must be signed in to parse a resume' }, { status: 401 })
+    }
+
     const formData = await req.formData()
     const file = formData.get('resume') as File | null
 
