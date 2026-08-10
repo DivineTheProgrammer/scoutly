@@ -30,14 +30,14 @@ export default function Home() {
     setError('')
 
     try {
-      setStatus('Parsing resume...')
+      setStatus('Reading your resume')
       const formData = new FormData()
       formData.append('resume', resumeFile)
       const resumeRes = await fetch('/api/parse-resume', { method: 'POST', body: formData })
       const resumeData = await resumeRes.json()
       if (!resumeRes.ok) throw new Error(resumeData.error || 'Resume parsing failed')
 
-      setStatus('Parsing job posting...')
+      setStatus('Reading the job posting')
       const jobRes = await fetch('/api/parse-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,7 +46,7 @@ export default function Home() {
       const jobData = await jobRes.json()
       if (!jobRes.ok) throw new Error(jobData.error || 'Job parsing failed')
 
-      setStatus('Running agent...')
+      setStatus('Researching the company and scoring your fit')
       const agentRes = await fetch('/api/run-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,59 +63,81 @@ export default function Home() {
     }
   }
 
-  const signInLinkStyle = { display: 'inline-block', marginTop: '1rem', padding: '0.5rem 1rem', backgroundColor: 'white', color: 'black', borderRadius: '4px', textDecoration: 'none' }
+  const pageStyle = { minHeight: '100vh', background: 'var(--bg)', padding: '3rem 1.5rem' }
+  const containerStyle = { maxWidth: '480px', margin: '0 auto' }
+  const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.5rem' }
+  const labelStyle = { display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }
+  const inputStyle = { width: '100%', padding: '0.65rem 0.75rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '0.95rem' }
+  const buttonStyle = {
+    width: '100%',
+    marginTop: '1.5rem',
+    padding: '0.8rem',
+    cursor: loading || !resumeFile || !jobUrl ? 'not-allowed' : 'pointer',
+    backgroundColor: 'var(--accent)',
+    color: 'var(--accent-text)',
+    border: 'none',
+    borderRadius: 'var(--radius)',
+    fontWeight: 700,
+    fontSize: '0.95rem',
+  }
 
   if (checkingAuth) {
-    return <main style={{ padding: '2rem', color: 'white' }}>Loading...</main>
+    return (
+      <div style={pageStyle}>
+        <div style={containerStyle}>
+          <p style={{ color: 'var(--text-muted)' }}>Loading</p>
+        </div>
+      </div>
+    )
   }
 
   if (!user) {
     return (
-      <main style={{ padding: '2rem', color: 'white', maxWidth: '500px', margin: '0 auto' }}>
-        <h1>Scoutly</h1>
-        <p style={{ color: '#999', marginTop: '1rem' }}>Sign in to get started with tailored job applications.</p>
-        <a href="/login" style={signInLinkStyle}>Sign In</a>
-      </main>
+      <div style={pageStyle}>
+        <div style={containerStyle}>
+          <h1>Scoutly</h1>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.75rem', lineHeight: 1.5 }}>
+            An honest fit analysis for one specific job, built by an agent that researches the company, scores your real experience, and tells you where the gaps actually are.
+          </p>
+          <a href="/login" style={{ display: 'inline-block', marginTop: '1.5rem', padding: '0.7rem 1.4rem', backgroundColor: 'var(--accent)', color: 'var(--accent-text)', borderRadius: 'var(--radius)', textDecoration: 'none', fontWeight: 700 }}>Sign In</a>
+        </div>
+      </div>
     )
   }
 
   return (
-    <main style={{ padding: '2rem', color: 'white', maxWidth: '500px', margin: '0 auto' }}>
-      <h1>Scoutly</h1>
-      <p style={{ color: '#999', marginTop: '0.5rem' }}>
-        Signed in as {user.email} - <a href="/runs" style={{ color: '#4ea8ff' }}>View past runs</a>
-      </p>
+    <div style={pageStyle}>
+      <div style={containerStyle}>
+        <h1>Scoutly</h1>
+        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.85rem' }}>
+          {user.email} &middot; <a href="/runs">View past runs</a>
+        </p>
 
-      <div style={{ marginTop: '2rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Your Resume</label>
-        <input
-          type="file"
-          accept=".pdf,.docx"
-          onChange={function (e) { setResumeFile(e.target.files ? e.target.files[0] : null) }}
-          style={{ width: '100%', padding: '0.5rem', color: 'black', backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-        />
+        <div style={{ ...cardStyle, marginTop: '2rem' }}>
+          <div>
+            <label style={labelStyle}>Your Resume</label>
+            <input type="file" accept=".pdf,.docx" onChange={function (e) { setResumeFile(e.target.files ? e.target.files[0] : null) }} style={inputStyle} />
+          </div>
+
+          <div style={{ marginTop: '1.25rem' }}>
+            <label style={labelStyle}>Job Posting URL</label>
+            <input type="text" value={jobUrl} onChange={function (e) { setJobUrl(e.target.value) }} placeholder="https://..." style={inputStyle} />
+          </div>
+
+          <button onClick={handleSubmit} disabled={loading || !resumeFile || !jobUrl} style={buttonStyle}>
+            {loading ? status : 'Analyze Fit'}
+          </button>
+
+          {loading && (
+            <div style={{ marginTop: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)' }} />
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>This takes about 15 seconds</span>
+            </div>
+          )}
+
+          {error && <p style={{ color: 'var(--fit-weak)', marginTop: '1rem', fontSize: '0.9rem' }}>{error}</p>}
+        </div>
       </div>
-
-      <div style={{ marginTop: '1rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Job Posting URL</label>
-        <input
-          type="text"
-          value={jobUrl}
-          onChange={function (e) { setJobUrl(e.target.value) }}
-          placeholder="https://..."
-          style={{ width: '100%', padding: '0.5rem', color: 'black', backgroundColor: 'white', border: '1px solid #ccc', borderRadius: '4px' }}
-        />
-      </div>
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !resumeFile || !jobUrl}
-        style={{ marginTop: '1.5rem', padding: '0.75rem 1.5rem', cursor: 'pointer', backgroundColor: 'white', color: 'black', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}
-      >
-        {loading ? (status || 'Working...') : 'Analyze Fit'}
-      </button>
-
-      {error && <p style={{ color: 'red', marginTop: '1rem' }}>Error: {error}</p>}
-    </main>
+    </div>
   )
 }
