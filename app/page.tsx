@@ -24,6 +24,12 @@ export default function Home() {
     })
   }, [])
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   const handleSubmit = async () => {
     if (!resumeFile || !jobUrl) return
     setLoading(true)
@@ -80,6 +86,7 @@ export default function Home() {
     fontWeight: 700,
     fontSize: '0.95rem',
   }
+  const signOutButtonStyle = { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', padding: 0, textDecoration: 'underline' }
 
   if (checkingAuth) {
     return (
@@ -110,7 +117,7 @@ export default function Home() {
       <div style={containerStyle}>
         <h1>Scoutly</h1>
         <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '0.85rem' }}>
-          {user.email} &middot; <a href="/runs">View past runs</a>
+          {user.email} &middot; <a href="/runs">View past runs</a> &middot; <button onClick={handleSignOut} style={signOutButtonStyle}>Sign out</button>
         </p>
 
         <div style={{ ...cardStyle, marginTop: '2rem' }}>

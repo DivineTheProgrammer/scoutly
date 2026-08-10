@@ -1,157 +1,55 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from './lib/supabase'
+import { createClient } from '../lib/supabase'
 
-export default function Home() {
-  const router = useRouter()
+export default function Login() {
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
   const supabase = createClient()
 
-  const [user, setUser] = useState<any>(null)
-  const [checkingAuth, setCheckingAuth] = useState(true)
-
-  const [resumeFile, setResumeFile] = useState<File | null>(null)
-  const [jobUrl, setJobUrl] = useState('')
-  const [status, setStatus] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  useState(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user)
-      setCheckingAuth(false)
-    })
-  })
-
-  const handleSubmit = async () => {
-    if (!resumeFile || !jobUrl) return
+  const handleLogin = async () => {
     setLoading(true)
     setError('')
 
-    try {
-      setStatus('Parsing resume...')
-      const formData = new FormData()
-      formData.append('resume', resumeFile)
-      const resumeRes = await fetch('/api/parse-resume', { method: 'POST', body: formData })
-      const resumeData = await resumeRes.json()
-      if (!resumeRes.ok) throw new Error(resumeData.error || 'Resume parsing failed')
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email,
+      options: {
+        emailRedirectTo: window.location.origin + '/auth/callback',
+      },
+    })
 
-      setStatus('Parsing job posting...')
-      const jobRes = await fetch('/api/parse-job', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobUrl }),
-      })
-      const jobData = await jobRes.json()
-      if (!jobRes.ok) throw new Error(jobData.error || 'Job parsing failed')
-
-      setStatus('Running agent (research, scoring, generation)...')
-      const agentRes = await fetch('/api/run-agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobRunId: jobData.jobRunId }),
-      })
-      const agentData = await agentRes.json()
-      if (!agentRes.ok) throw new Error(agentData.error || 'Agent run failed')
-
-      router.push(`/runs/${jobData.jobRunId}`)
-    } catch (err: any) {
-      setError(err.message || String(err))
-      setLoading(false)
-      setStatus('')
+    if (error) {
+      setError(error.message)
+    } else {
+      setSent(true)
     }
+    setLoading(false)
   }
 
-  if (checkingAuth) {
-    return <main style={{ padding: '2rem', color: 'white' }}>Loading...</main>
-  }
-
-  if (!user) {
-    return (
-      <main style={{ padding: '2rem', color: 'white', maxWidth: '500px', margin: '0 auto' }}>
-        <h1>Scoutly</h1>
-        <p style={{ color: '#999', marginTop: '1rem' }}>
-          Sign in to get started with tailored job applications.
-        </p>
-        
-          href="/login"
-          style={{
-            display: 'inline-block',
-            marginTop: '1rem',
-            padding: '0.5rem 1rem',
-            backgroundColor: 'white',
-            color: 'black',
-            borderRadius: '4px',
-            textDecoration: 'none',
-          }}
-        >
-          Sign In
-        </a>
-      </main>
-    )
-  }
+  const pageStyle = { minHeight: '100vh', background: 'var(--bg)', padding: '3rem 1.5rem' }
+  const containerStyle = { maxWidth: '400px', margin: '0 auto' }
+  const inputStyle = { width: '100%', padding: '0.65rem 0.75rem', marginTop: '0.75rem', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '0.95rem' }
+  const buttonStyle = { marginTop: '1rem', padding: '0.7rem 1.2rem', cursor: 'pointer', backgroundColor: 'var(--accent)', color: 'var(--accent-text)', border: 'none', borderRadius: 'var(--radius)', fontWeight: 700 }
 
   return (
-    <main style={{ padding: '2rem', color: 'white', maxWidth: '500px', margin: '0 auto' }}>
-      <h1>Scoutly</h1>
-      <p style={{ color: '#999', marginTop: '0.5rem' }}>
-        Signed in as {user.email} · <a href="/runs" style={{ color: '#4ea8ff' }}>View past runs</a>
-      </p>
+    <div style={pageStyle}>
+      <div style={containerStyle}>
+        <h1>Sign in to Scoutly</h1>
 
-      <div style={{ marginTop: '2rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Your Resume</label>
-        <input
-          type="file"
-          accept=".pdf,.docx"
-          onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            color: 'black',
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
+        {sent ? (
+          <p style={{ color: 'var(--fit-strong)', marginTop: '1rem' }}>Check your email for a magic link to sign in.</p>
+        ) : (
+          <div>
+            <input type="email" value={email} onChange={function (e) { setEmail(e.target.value) }} placeholder="you@example.com" style={inputStyle} />
+            <button onClick={handleLogin} disabled={loading || !email} style={buttonStyle}>{loading ? 'Sending...' : 'Send Magic Link'}</button>
+            {error && <p style={{ color: 'var(--fit-weak)', marginTop: '1rem' }}>{error}</p>}
+          </div>
+        )}
       </div>
-
-      <div style={{ marginTop: '1rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem' }}>Job Posting URL</label>
-        <input
-          type="text"
-          value={jobUrl}
-          onChange={(e) => setJobUrl(e.target.value)}
-          placeholder="https://..."
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            color: 'black',
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-          }}
-        />
-      </div>
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !resumeFile || !jobUrl}
-        style={{
-          marginTop: '1.5rem',
-          padding: '0.75rem 1.5rem',
-          cursor: 'pointer',
-          backgroundColor: 'white',
-          color: 'black',
-          border: 'none',
-          borderRadius: '4px',
-          fontWeight: 'bold',
-        }}
-      >
-        {loading ? status || 'Working...' : 'Analyze Fit'}
-      </button>
-
-      {error && <p style={{ color: 'red', marginTop: '1rem' }}>Error: {error}</p>}
-    </main>
+    </div>
   )
 }
